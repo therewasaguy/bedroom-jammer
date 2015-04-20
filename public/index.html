@@ -1,0 +1,51 @@
+<html>
+<head>
+<script src="http://localhost:8080/socket.io/socket.io.js"></script>
+<script src="./lib/jquery-1.7.2.min.js"></script>
+<script src="./lib/Tone.js"></script>
+<script src="./lib/phaser.min.js"></script>
+<script src="./lib/p5.min.js"></script>
+<script src="./js/flower.js"></script>
+<script src="./js/chat.js"></script>
+<script src="./js/world.js"></script>
+
+
+<style type="text/css" media="screen">
+	div#chatroom {
+		display: block;
+		height: 800px;
+		border: 1px solid #999;
+		overflow: auto;
+		width: 100%;
+		margin-bottom: 10px;
+		position: relative;
+		color: purple;
+	}
+
+	ul#chat_log {
+		list-style: none;
+		position: absolute;
+		bottom: 0px;
+	}
+
+	input#chat_box {
+		width: 100%;
+	}
+
+	/*body { zoom: 1.15; }*/
+
+
+</style>
+</head>
+<body>
+
+	<div id="chatroom">
+		<ul id="chat_log">
+		</ul>
+	</div>
+
+	<input type="text" name="chat_box" value="" id="chat_box" placeholder="type to chat..." />
+	</br>
+	</br>
+</body>
+</html>
