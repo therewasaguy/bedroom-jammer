@@ -8,7 +8,7 @@ Tone.Transport.bpm.value = 80;
 
 var flowerPlayer = new Tone.Player("./audio/ChatAppBedroomJammerdraftRoughArrangement_80bpm.mp3", startPlayerAndTransport);
 
-flowerPlayer.toMaster();
+//flowerPlayer.toMaster();
 
 
 function startPlayerAndTransport() {
@@ -88,8 +88,8 @@ var eyeSynth = (function() {
   var eq = new Tone.EQ(-3, -25, -20);
   var chorus = new Tone.Chorus("4n", 3.5, .6);
 
-  comb.chain(eq, adsr, filter, chorus, Tone.Master);
-  filter.toMaster();
+  //comb.chain(eq, adsr, filter, chorus, Tone.Master);
+  //filter.toMaster();
 
   /**
    *  
@@ -127,7 +127,7 @@ flowerPlayer.connect(envFollower);
 var osc = new Tone.OmniOscillator();
 osc.start();
 osc.frequency.value = "Db5";
-osc.toMaster();
+//osc.toMaster();
 envFollower.connect(osc.volume);
 
 var appleSynth = new Tone.DuoSynth(
@@ -198,7 +198,7 @@ var appleSynth = new Tone.DuoSynth(
   }
 });
 
-appleSynth.chain(Tone.Master);
+//appleSynth.chain(Tone.Master);
 
 window.onmousedown = function(e) {
   var numb = Math.floor(e.x/100);
