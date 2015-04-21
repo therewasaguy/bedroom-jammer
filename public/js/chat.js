@@ -48,6 +48,10 @@ jQuery(document).ready(function () {
 		speaker.speak(messageLength);
 	});
 
+	socket.on('othersEntrance', function  (data) {
+		log_chat_message(data.message, 'system');
+	});
+
 
 	jQuery('#chat_box').keypress(function (event) {
 		if (event.which == 13) {
