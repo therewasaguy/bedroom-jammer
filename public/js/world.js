@@ -6,7 +6,12 @@ var game = new Phaser.Game(1400, 800, Phaser.AUTO, 'chatroom', {
 var socket = io.connect('http://localhost:8080');
 var myIndex;
 var platforms;
-var leafs;
+
+var leafLedges = [];
+var leafSprites = [];
+var leafContact, prevLeafContact;
+var origTint = 0xFFFFFF;
+
 var flower;
 var player;
 var player2;
@@ -77,23 +82,33 @@ function create() {
 	// eyes.body.immovable = true;
 
 
+	var leaf = game.add.sprite(602, game.world.height - 226, 'leftleaf');
+	leaf.scale.setTo(.66, .66);
 	var ledge = platforms.create(608, game.world.height - 200, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.23, .05);
-	var leaf = game.add.sprite(602, game.world.height - 226, 'leftleaf');
-	leaf.scale.setTo(.66, .66);
+	leafLedges.push(ledge);
+	leafSprites.push(leaf);
 
-	var ledge = platforms.create(534, game.world.height - 494, 'platform');
+
+	ledge = platforms.create(534, game.world.height - 494, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.23, .05);
-	var leaf = game.add.sprite(528, game.world.height - 520, 'leftleaf');
+	leaf = game.add.sprite(528, game.world.height - 520, 'leftleaf');
 	leaf.scale.setTo(.66, .66);
+	leafLedges.push(ledge);
+	leafSprites.push(leaf);
 
-	var ledge = platforms.create(726, game.world.height - 354, 'platform');
+
+	ledge = platforms.create(726, game.world.height - 354, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.23, .05);
-	var leaf = game.add.sprite(720, game.world.height - 380, 'rightleaf');
+	leaf =  game.add.sprite(720, game.world.height - 380, 'rightleaf');
 	leaf.scale.setTo(.66, .66);
+	leafLedges.push(ledge);
+	leafSprites.push(leaf);
+
+
 
 	game.add.sprite(580, 100, 'stem');
 	flower = game.add.sprite(580, 10, 'flower');
@@ -107,7 +122,7 @@ function create() {
 
 
 
-	//leafs = game.add.group();
+	//leafLedges = game.add.group();
 
 
 	//clouds = game.add.sprite();
@@ -242,7 +257,8 @@ function create() {
 
 function update() {
 
-	game.physics.arcade.collide(player, platforms);
+	leafContact = -1;
+
 	game.physics.arcade.collide(player, eyes);
 
 	game.physics.arcade.collide(player, creature);
@@ -253,6 +269,8 @@ function update() {
 	game.physics.arcade.overlap(player, bouncy, animateBroccoli, null, this);
 	// game.physics.arcade.overlap(player, eyes, eyesBlink, null, this);
 
+	game.physics.arcade.overlap(player, platforms, playerOnPlatform, null, this);
+	game.physics.arcade.collide(player, platforms);
 
 
 	// if (creature.position.x < 2 || creature.position.x > 1365){
@@ -291,7 +309,16 @@ function update() {
 		index: myIndex
 	});
 
-	//console.log(player.body.velocity.x);
+	if (prevLeafContact >= 0 && leafContact === -1) {
+		leafOff(prevLeafContact);
+	} else {
+		leafOn(leafContact);
+	}
+
+	prevLeafContact = leafContact;
+
+	playerDistanceFromEyes();
+	tintLeaves();
 }
 
 // socket.on('updatePos', function(data) {
@@ -389,18 +416,20 @@ function animateBroccoli() {
 	console.log("touched");
 }
 
-function looper() {
-	toggleLoopPoint(Math.floor(Math.random() * 70));
-}
+// function looper() {
+// 	leafPlayer.toggleLoopPoint(Math.floor(Math.random() * 70));
+// }
 
 function collectStar(player, star) {
 	star.destroy();
 	score += 10;
 	scoreText.text = 'Arbitrary Score: ' + score;
-	looper();
+
+	playStar();
 }
 
 function eyesBlink(player, star) {
+	console.log('eyes blink');
 	if (!eyesOpen) {
 		eyes.animations.play('on');
 		console.log("opening eyes");
@@ -410,4 +439,64 @@ function eyesBlink(player, star) {
 		console.log("closing eyes");
 		eyesOpen = false;
 	}
+}
+
+function playerOnPlatform(player, platform) {
+
+	for (var i = 0; i < leafLedges.length; i++) {
+		if (platform === leafLedges[i]) {
+			leafContact = i;
+		}
+	}
+	// console.log('playerOnPlatform');
+	// console.log(player);
+}
+
+function leafOn(index) {
+	if (leafContact >= 0 && prevLeafContact < 0) {
+		toggleLoopPoint(Math.floor( Math.random()*100 ), leafPlayers[index]);
+
+		// start metering the leaf level
+		leafPlayers[index].connect(leafMeters[index]);
+
+	}
+}
+
+function leafOff(index) {
+	stopLooping(leafPlayers[index]);
+
+	// stop metering the leaf level
+	leafPlayers[index].disconnect();
+
+	// reset the tint (just in case)
+	leafSprites[index].tint = parseInt(rgb2hex(255,255,255));
+
+}
+
+function tintLeaves() {
+	for (var i = 0; i < leafMeters.length; i++) {
+		var level = leafMeters[i].getLevel();
+		level = level*1000;
+		leafSprites[i].tint = parseInt(rgb2hex(255, 255 - level, 255));
+	}
+}
+
+function playerDistanceFromEyes() {
+	// calculate distance from eyes position
+	var distance = getDistance(player.x, player.y, eyes.x, eyes.y);
+	var normDistance = Tone.prototype.normalize(distance, 1000, 0);
+
+	eyeSynth.setVolume(1 - normDistance);
+}
+
+function getDistance(x1, y1, x2, y2) {
+	return Math.sqrt(  Math.pow( (x1 - x2), 2), Math.pow((y1 - y2), 2) );
+}
+
+
+////////////////// COLOR HELPER FUNCTION
+function rgb2hex(red, green, blue) {
+  var rgb = blue | (green << 8) | (red << 16);
+  var hexString = '#' + (0x1000000 + rgb).toString(16).slice(1)
+	return parseInt(hexString.replace(/^#/, ''), 16);
 }

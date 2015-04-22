@@ -6,50 +6,72 @@
 // setup Tone
 Tone.Transport.bpm.value = 80;
 
-var flowerPlayer = new Tone.Player("./audio/ChatAppBedroomJammerdraftRoughArrangement_80bpm.mp3", startPlayerAndTransport);
+var leafPlayers = [];
+leafPlayers.push( new Tone.Player("./audio/stems/leafs/Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_hmm.mp3") );
+leafPlayers.push( new Tone.Player("./audio/stems/leafs/Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_808_Snare.mp3") );
+leafPlayers.push( new Tone.Player("./audio/stems/leafs/Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_Big_Kick.mp3") );
 
-//flowerPlayer.toMaster();
 
+var leafMeters = [];
+for (var i in leafPlayers) {
+  leafMeters.push( new Tone.Meter(1, 0.2, 0) );
+  leafMeters[i].toMaster();
+}
+
+// var cloudPlayer = new Tone.Player("Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_metalsound.mp3");
+
+
+//invoked when all of the queued samples are done loading
+Tone.Buffer.onload = function(){
+  startPlayerAndTransport();
+};
 
 function startPlayerAndTransport() {
   Tone.Transport.start(0);
 
-  flowerPlayer.loop = true;
-
   var loopStart = Tone.Transport.transportTimeToSeconds("0:0:0");
   var loopEnd = Tone.Transport.transportTimeToSeconds("8:0:0");
 
-  flowerPlayer.setLoopPoints(loopStart, loopEnd)
-  flowerPlayer.start(0);
-  flowerPlayer.volume.value = -12;
+  for (var i = 0; i < leafPlayers.length; i++) {
+    leafPlayers[i].toMaster();
+    leafPlayers[i].loop = true;
+    leafPlayers[i].setLoopPoints(loopStart, loopEnd)
+    leafPlayers[i].start(0);
+    leafPlayers[i].volume.value = -64;
+  }
 
   eyeSynth.start(0);
 }
 
-function toggleLoopPoint(measure) {
-
+var toggleLoopPoint = function(measure, aPlayer) {
+  var player = aPlayer;
   var currentMeasure = Tone.Transport.position.split(":")[0];
   var nextMeasure = Number(currentMeasure) + 1;
   nextMeasure =  nextMeasure + ":0:0";
 
-  console.log('current Measure' + currentMeasure);
-  console.log('next Measure' + nextMeasure);
+  // console.log('current Measure' + currentMeasure);
+  // console.log('next Measure' + nextMeasure);
+
+  aPlayer.volume.value = 12;
 
   // schedule the change to happen on the nextMeasure
   Tone.Transport.setTimeline(function(time) {
     // do it at next loop point
-    flowerPlayer.stop(time);
+    aPlayer.stop(time);
 
     var loopStart = Tone.Transport.transportTimeToSeconds(measure + ":0:0");
     var loopEnd = Tone.Transport.transportTimeToSeconds(measure + 1 + ":0:0");
-    console.log(loopStart);
-    console.log(loopEnd);
-    flowerPlayer.setLoopPoints(loopStart, loopEnd)
+
+    aPlayer.setLoopPoints(loopStart, loopEnd)
 
     // do it at next loop point
-    flowerPlayer.start(time);
-    console.log('hi');
+    aPlayer.start(time);
   }, nextMeasure);
+}
+
+var stopLooping = function(aPlayer) {
+  console.log('remove loop point');
+  aPlayer.volume.value = -64;
 }
 
 ///////////////////////////////////////
@@ -88,8 +110,11 @@ var eyeSynth = (function() {
   var eq = new Tone.EQ(-3, -25, -20);
   var chorus = new Tone.Chorus("4n", 3.5, .6);
 
-  //comb.chain(eq, adsr, filter, chorus, Tone.Master);
-  //filter.toMaster();
+  this.output = Tone.context.createGain();
+
+  comb.chain(eq, adsr, filter, chorus, this.output);
+  filter.connect(this.output);
+  this.output.connect(Tone.Master);
 
   /**
    *  
@@ -114,6 +139,18 @@ var eyeSynth = (function() {
     adsr.triggerRelease(0);
   }
 
+  this.setVolume = function(vol) {
+    this.output.gain.linearRampToValueAtTime(vol, Tone.prototype.now() );
+
+    var freq = Math.round( Math.abs(1 - vol) * 64 / 4);
+
+    lfo.oscillator.frequency.value = freq;
+  }
+
+  // this.setLFO = function(vol) {
+    // lfo.}
+  // }
+
   return this;
 })();
 
@@ -121,14 +158,14 @@ var eyeSynth = (function() {
 var whatKey = ["Db", "Eb", "F", "Gb", "Ab", "Bb", "C"];
 
 // ENV FOLLOWER
-var envFollower = new Tone.Follower(0.05, 0.02);
-flowerPlayer.connect(envFollower);
+// var envFollower = new Tone.Follower(0.05, 0.02);
+// leafPlayer.connect(envFollower);
 
-var osc = new Tone.OmniOscillator();
-osc.start();
-osc.frequency.value = "Db5";
-//osc.toMaster();
-envFollower.connect(osc.volume);
+// var osc = new Tone.OmniOscillator();
+// osc.start();
+// osc.frequency.value = "Db5";
+// osc.toMaster();
+// envFollower.connect(osc.volume);
 
 var appleSynth = new Tone.DuoSynth(
 {
@@ -198,16 +235,19 @@ var appleSynth = new Tone.DuoSynth(
   }
 });
 
-//appleSynth.chain(Tone.Master);
+appleSynth.chain(Tone.Master);
 
-window.onmousedown = function(e) {
-  var numb = Math.floor(e.x/100);
+playStar = function() {
+  var numb = Math.floor( Math.random() * 10 );
   var note = whatKey[numb % whatKey.length];
   var octave = String( Math.floor(numb / 5.1) + 2);
   console.log(note + octave);
-  appleSynth.triggerAttack(note + octave);
+  appleSynth.triggerAttackRelease(note + octave, 0.5);
 }
 
-window.onmouseup = function(e) {
-  appleSynth.triggerRelease();
-}
+
+
+
+// window.onmouseup = function(e) {
+//   appleSynth.triggerRelease();
+// }
