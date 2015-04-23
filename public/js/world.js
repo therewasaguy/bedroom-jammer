@@ -29,9 +29,11 @@ var creatureDirection = 'left';
 var playerX,
 	playerY,
 	playerVel;
+var player2;
 var existingPlayer;
 var otherPlayer;
-var playerExists;
+var player2Exists = false;
+var player2Set = false;
 var chosenCharacter = Math.floor(Math.random() * 2);
 
 function preload() {
@@ -103,7 +105,7 @@ function create() {
 	ledge = platforms.create(726, game.world.height - 354, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.23, .05);
-	leaf =  game.add.sprite(720, game.world.height - 380, 'rightleaf');
+	leaf = game.add.sprite(720, game.world.height - 380, 'rightleaf');
 	leaf.scale.setTo(.66, .66);
 	leafLedges.push(ledge);
 	leafSprites.push(leaf);
@@ -114,6 +116,8 @@ function create() {
 	flower = game.add.sprite(580, 10, 'flower');
 
 	broccoli = game.add.sprite(game.world.width - 200, game.world.height - 346, 'broccoli');
+	broccoli.enableBody = true;
+
 	broccoli.scale.setTo(.7, .7);
 	broccoli.animations.add('on', [0, 1, 2, 3, 4, 5, 6, 7], 10, true);
 	broccoli.animations.play('on');
@@ -134,10 +138,10 @@ function create() {
 	ledge.scale.setTo(.44, .5);
 	var cloud = game.add.sprite(270, 200, 'cloud');
 
-	var ledge = platforms.create(1094, 180, 'platform');
+	var ledge = platforms.create(1200, 180, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.44, .5);
-	var leaf = game.add.sprite(1090, 160, 'cloud');
+	var leaf = game.add.sprite(1196, 160, 'cloud');
 
 	var ledge = platforms.create(804, 240, 'platform');
 	ledge.body.immovable = true;
@@ -165,7 +169,8 @@ function create() {
 	var ground = platforms.create(0, game.world.height - 32, 'platform');
 	var grass = game.add.sprite(-10, game.world.height - 70, 'grass');
 
-	var apple = game.add.sprite(50, 370, 'apple');
+	apple = game.add.sprite(50, 370, 'apple');
+	apple.enableBody = true;
 	apple.scale.setTo(.7, .7);
 
 	bouncy = game.add.sprite(75, game.world.height - 152, 'bouncy');
@@ -183,6 +188,9 @@ function create() {
 		player = players.create(500, game.world.height - 150, 'dude2');
 	}
 
+	player2 = players.create(500, game.world.height - 150, 'dude2');
+	player2.exists = false;
+
 	game.add.sprite(game.world.width - 400, game.world.height - 310, 'frontcave');
 	var grass = game.add.sprite(game.world.width - 130, game.world.height - 70, 'smallgrasspatch');
 
@@ -199,6 +207,8 @@ function create() {
 
 
 	game.physics.arcade.enable(player);
+	game.physics.arcade.enable(apple);
+	game.physics.arcade.enable(broccoli);
 	game.physics.arcade.enable(creature);
 	game.physics.arcade.enable(bouncy);
 	player.body.bounce.y = .180;
@@ -233,10 +243,10 @@ function create() {
 	stars.enableBody = true;
 
 
-	for (var i = 0; i < 20; i++) {
-		var star = stars.create(i * 70, 0, 'star');
-		star.body.gravity.y = 425;
-		star.body.bounce.y = 1;
+	for (var i = 1; i < 4; i++) {
+		var star = stars.create(1215 + i * 40, 200, 'star');
+		star.body.velocity.y = i * 100 + 20;
+		star.body.gravity.y = 20;
 	}
 
 
@@ -264,9 +274,16 @@ function update() {
 	game.physics.arcade.collide(player, creature);
 	//game.physics.arcade.collide(player, bouncy);
 	game.physics.arcade.collide(creature, platforms);
-	game.physics.arcade.collide(stars, platforms);
+	game.physics.arcade.collide(stars, platforms, function(star) {
+		star.kill();
+		makeStar()
+	});
 	game.physics.arcade.overlap(player, stars, collectStar, null, this);
 	game.physics.arcade.overlap(player, bouncy, animateBroccoli, null, this);
+	if (!appleOn) {
+		game.physics.arcade.overlap(player, apple, playApple, null, this);
+	}
+
 	// game.physics.arcade.overlap(player, eyes, eyesBlink, null, this);
 
 	game.physics.arcade.overlap(player, platforms, playerOnPlatform, null, this);
@@ -288,6 +305,17 @@ function update() {
 		player.body.velocity.x = 150;
 		player.animations.play('right');
 	} else {
+		player.animations.play('blink');
+	}
+
+	if (cursors.down.isDown && cursors.left.isDown) {
+		player.body.velocity.y = 800;
+		player.animations.play('left');
+	} else if (cursors.down.isDown && cursors.right.isDown) {
+		player.body.velocity.y = 800;
+		player.animations.play('right');
+	} else if (cursors.down.isDown && !cursors.up.isDown) {
+		player.body.velocity.y = 800;
 		player.animations.play('blink');
 	}
 
@@ -319,6 +347,15 @@ function update() {
 
 	playerDistanceFromEyes();
 	tintLeaves();
+	if (appleOn) {
+		apple.position.x = player.position.x;
+		apple.position.y = player.position.y;
+	} else {
+		apple.position.x = 50;
+		apple.position.y = 370;
+	}
+
+	//cave x > 1253, y > 490
 }
 
 // socket.on('updatePos', function(data) {
@@ -332,64 +369,62 @@ socket.on('entrance', function(data) {
 	socket.emit('getStatus');
 });
 
-socket.on('giveStatus', function(){
+socket.on('giveStatus', function() {
 	playerExists = true;
-	socket.emit('respondStatus', {x: playerX, y: playerY, velocity: playerVel});
+	socket.emit('respondStatus', {
+		x: playerX,
+		y: playerY,
+		velocity: playerVel
+	});
 });
 
-socket.on('initPos', function(data){
-	console.log("guy exists");
-	existingPlayer = game.add.sprite(700, game.world.height - 150, 'dude1');
-	existingPlayer.animations.add('left', [0, 1], 10, true);
-	existingPlayer.animations.add('right', [3, 4], 10, true);
-	existingPlayer.animations.add('blink', [5, 6, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5], 10, true);
-})
+// player2
+
+// socket.on('othersEntrance', function(data) {
+// 	// players.push = data.index;
+// 	console.log('other person logged on')
+
+// 	var otherCharacter = data.character;
+// 	otherPlayer = game.add.sprite(500, game.world.height - 150, 'dude2');
+// 	otherPlayer.animations.add('left', [0, 1], 10, true);
+// 	otherPlayer.animations.add('right', [3, 4], 10, true);
+// 	otherPlayer.animations.add('blink', [5, 6, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5], 10, true);
 
 
+// });
 
-
-socket.on('othersEntrance', function(data) {
-	// players.push = data.index;
-	console.log('other person logged on')
-
-	var otherCharacter = data.character;
-	otherPlayer = game.add.sprite(500, game.world.height - 150, 'dude2');
-	otherPlayer.animations.add('left', [0, 1], 10, true);
-	otherPlayer.animations.add('right', [3, 4], 10, true);
-	otherPlayer.animations.add('blink', [5, 6, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5], 10, true);
+socket.on('updatePos', function(data) {
+		player2Exists = true;
+		if (!player2Set){
+		player2.exists = true;
+		player2Set = true;
+	}
+		player2.position.x = data.x;
+		player2.position.y = data.y;
+		if (data.velocity > 0) {
+			player2.animations.play('right');
+		} else if (data.velocity < 0) {
+			player2.animations.play('left');
+		} else if (data.velocity === 0) {
+			player2.animations.play('blink');
+		}
 
 	
-});
+		// otherPlayer.position.x = data.x;
+		// otherPlayer.position.y = data.y;
+		// if (data.velocity > 0) {
+		// 	otherPlayer.animations.play('right');
+		// } else if (data.velocity < 0) {
+		// 	otherPlayer.animations.play('left');
+		// } else if (data.velocity === 0) {
+		// 	otherPlayer.animations.play('blink');
+		// }
 
-socket.on('updatePos', function(data){
-	if (playerExists){
-		existingPlayer.position.x = data.x;
-		existingPlayer.position.y = data.y;
-		if (data.velocity > 0){
-		existingPlayer.animations.play('right');
-	}else if (data.velocity < 0){
-		existingPlayer.animations.play('left');
-	}else if (data.velocity === 0){
-		existingPlayer.animations.play('blink');
-	}
-
-	}else{
-	otherPlayer.position.x = data.x;
-	otherPlayer.position.y = data.y;
-	if (data.velocity > 0){
-		otherPlayer.animations.play('right');
-	}else if (data.velocity < 0){
-		otherPlayer.animations.play('left');
-	}else if (data.velocity === 0){
-		otherPlayer.animations.play('blink');
-	}
-}
-	
 });
 
 // socket.on('othersCharacter', function(data){
 // 	var otherCharacter = data.character;
-	
+
 // 	var otherPlayer = players.create(500, game.world.height - 150, 'dude' + data.character + 1);
 // 	otherPlayer.animations.add('left', [0, 1], 10, true);
 // 	otherPlayer.animations.add('right', [3, 4], 10, true);
@@ -412,20 +447,42 @@ function turnCreature() {
 }
 
 function animateBroccoli() {
-
+	broccoli.body.velocity.y -= 100;
 	console.log("touched");
+}
+
+var appleOn = false;
+
+function playApple() {
+	appleOn = true;
+	setTimeout(function() {
+		appleOn = false;
+	});
+	console.log("apple playing")
+
 }
 
 // function looper() {
 // 	leafPlayer.toggleLoopPoint(Math.floor(Math.random() * 70));
 // }
 
+var index = 0;
+
 function collectStar(player, star) {
-	star.destroy();
+
+	xPos = star.body.position.x
+	star.kill()
+	makeStar();
 	score += 10;
 	scoreText.text = 'Arbitrary Score: ' + score;
-
 	playStar();
+}
+
+function makeStar() {
+	var newStar = stars.create(1215 + index * 40, 200, 'star');
+	newStar.body.velocity.y = index * 100 + 20;
+	newStar.body.gravity.y = 20;
+	index = (index + 1) % 4;
 }
 
 function eyesBlink(player, star) {
@@ -454,7 +511,7 @@ function playerOnPlatform(player, platform) {
 
 function leafOn(index) {
 	if (leafContact >= 0 && prevLeafContact < 0) {
-		toggleLoopPoint(Math.floor( Math.random()*100 ), leafPlayers[index]);
+		toggleLoopPoint(Math.floor(Math.random() * 100), leafPlayers[index]);
 
 		// start metering the leaf level
 		leafPlayers[index].connect(leafMeters[index]);
@@ -469,14 +526,14 @@ function leafOff(index) {
 	leafPlayers[index].disconnect();
 
 	// reset the tint (just in case)
-	leafSprites[index].tint = parseInt(rgb2hex(255,255,255));
+	leafSprites[index].tint = parseInt(rgb2hex(255, 255, 255));
 
 }
 
 function tintLeaves() {
 	for (var i = 0; i < leafMeters.length; i++) {
 		var level = leafMeters[i].getLevel();
-		level = level*1000;
+		level = level * 1000;
 		leafSprites[i].tint = parseInt(rgb2hex(255, 255 - level, 255));
 	}
 }
@@ -490,13 +547,13 @@ function playerDistanceFromEyes() {
 }
 
 function getDistance(x1, y1, x2, y2) {
-	return Math.sqrt(  Math.pow( (x1 - x2), 2), Math.pow((y1 - y2), 2) );
+	return Math.sqrt(Math.pow((x1 - x2), 2), Math.pow((y1 - y2), 2));
 }
 
 
 ////////////////// COLOR HELPER FUNCTION
 function rgb2hex(red, green, blue) {
-  var rgb = blue | (green << 8) | (red << 16);
-  var hexString = '#' + (0x1000000 + rgb).toString(16).slice(1)
+	var rgb = blue | (green << 8) | (red << 16);
+	var hexString = '#' + (0x1000000 + rgb).toString(16).slice(1)
 	return parseInt(hexString.replace(/^#/, ''), 16);
 }
