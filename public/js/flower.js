@@ -3,22 +3,48 @@
  *  
  */
 
-// setup Tone
+// everything connects to the convolver
+
+// Master stuff! 0 is dry, 1 is wet
+var masterWetDry = new Tone.CrossFade(0);
+var masterFilter = new Tone.Filter();
+var masterConvolver = Tone.context.createConvolver();
+var masterMix = Tone.context.createGain();
+masterMix.connect(masterConvolver);
+masterMix.connect(masterFilter);
+masterConvolver.connect(masterWetDry, 0, 1);
+masterFilter.connect(masterWetDry, 0, 0);
+masterFilter.connect(masterWetDry, 0, 1);
+masterWetDry.toMaster();
+
 Tone.Transport.bpm.value = 80;
 
+//////// LEAVES
 var leafPlayers = [];
 leafPlayers.push( new Tone.Player("./audio/stems/leafs/Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_hmm.mp3") );
 leafPlayers.push( new Tone.Player("./audio/stems/leafs/Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_808_Snare.mp3") );
 leafPlayers.push( new Tone.Player("./audio/stems/leafs/Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_Big_Kick.mp3") );
 
+var convolverBuffer = new Tone.Buffer('./audio/concrete-tunnel-IR.mp3');
 
 var leafMeters = [];
 for (var i in leafPlayers) {
   leafMeters.push( new Tone.Meter(1, 0.2, 0) );
-  leafMeters[i].toMaster();
+  leafMeters[i].connect(masterMix);
 }
 
-// var cloudPlayer = new Tone.Player("Chat_App_Bedroom_Jammer_draft_45_mixed_slightly_metalsound.mp3");
+///// CLOUDS
+var cloudPlayers = [];
+cloudPlayers.push( new Tone.Player("./audio/stems/clouds/otherStuff2.mp3") );
+cloudPlayers.push( new Tone.Player("./audio/stems/clouds/bass.mp3") );
+cloudPlayers.push( new Tone.Player("./audio/stems/clouds/drums.mp3") );
+cloudPlayers.push( new Tone.Player("./audio/stems/clouds/hmmOnly.mp3") );
+
+var cloudMeters = [];
+for (var i in cloudPlayers) {
+  cloudMeters.push( new Tone.Meter(1, 0.2, 0) );
+  cloudMeters[i].connect(masterMix);
+}
 
 
 //invoked when all of the queued samples are done loading
@@ -27,17 +53,29 @@ Tone.Buffer.onload = function(){
 };
 
 function startPlayerAndTransport() {
+  masterConvolver.buffer = convolverBuffer._buffer;
+
   Tone.Transport.start(0);
 
   var loopStart = Tone.Transport.transportTimeToSeconds("0:0:0");
   var loopEnd = Tone.Transport.transportTimeToSeconds("8:0:0");
 
   for (var i = 0; i < leafPlayers.length; i++) {
-    leafPlayers[i].toMaster();
+    // leafPlayers[i].toMaster();
+    leafPlayers[i].connect(masterMix);
     leafPlayers[i].loop = true;
     leafPlayers[i].setLoopPoints(loopStart, loopEnd)
     leafPlayers[i].start(0);
     leafPlayers[i].volume.value = -64;
+  }
+
+  for (var i = 0; i < cloudPlayers.length; i++) {
+    // leafPlayers[i].toMaster();
+    cloudPlayers[i].connect(masterMix);
+    cloudPlayers[i].loop = true;
+    cloudPlayers[i].setLoopPoints(loopStart, loopEnd)
+    cloudPlayers[i].start(0);
+    cloudPlayers[i].volume.value = -64;
   }
 
   eyeSynth.start(0);
@@ -49,18 +87,21 @@ var toggleLoopPoint = function(measure, aPlayer) {
   var nextMeasure = Number(currentMeasure) + 1;
   nextMeasure =  nextMeasure + ":0:0";
 
-  // console.log('current Measure' + currentMeasure);
-  // console.log('next Measure' + nextMeasure);
-
-  aPlayer.volume.value = 12;
+  aPlayer.volume.cancelScheduledValues( aPlayer.now() );
+  aPlayer.volume.linearRampToValueNow(-6, .02);
 
   // schedule the change to happen on the nextMeasure
   Tone.Transport.setTimeline(function(time) {
     // do it at next loop point
-    aPlayer.stop(time);
+    aPlayer.pause(time);
 
     var loopStart = Tone.Transport.transportTimeToSeconds(measure + ":0:0");
     var loopEnd = Tone.Transport.transportTimeToSeconds(measure + 1 + ":0:0");
+
+    if (loopEnd > aPlayer._buffer.duration) {
+      aPlayer.start(time);
+      return;
+    }
 
     aPlayer.setLoopPoints(loopStart, loopEnd)
 
@@ -71,7 +112,24 @@ var toggleLoopPoint = function(measure, aPlayer) {
 
 var stopLooping = function(aPlayer) {
   console.log('remove loop point');
-  aPlayer.volume.value = -64;
+
+  var oneMeasure = Tone.Transport.transportTimeToSeconds("1:0:0");
+
+  Tone.Transport.setTimeout(function(time) {
+
+    aPlayer.volume.linearRampToValueAtTime(-64, time + oneMeasure);
+
+    // // do it at next loop point
+    // aPlayer.start(time);
+
+    // stop metering the leaf level
+    // aPlayer.disconnect();
+
+    // reset the tint (just in case)
+    // aPlayer.tint = parseInt(rgb2hex(255, 255, 255));
+
+  }, oneMeasure);
+
 }
 
 ///////////////////////////////////////
@@ -114,7 +172,7 @@ var eyeSynth = (function() {
 
   comb.chain(eq, adsr, filter, chorus, this.output);
   filter.connect(this.output);
-  this.output.connect(Tone.Master);
+  this.output.connect(masterMix);
 
   /**
    *  
@@ -144,7 +202,7 @@ var eyeSynth = (function() {
 
     var freq = Math.round( Math.abs(1 - vol) * 64 / 4);
 
-    lfo.oscillator.frequency.value = freq;
+    lfo.oscillator.frequency.value = String(freq) + "n";
   }
 
   // this.setLFO = function(vol) {

@@ -10,7 +10,13 @@ var platforms;
 var leafLedges = [];
 var leafSprites = [];
 var leafContact, prevLeafContact;
+
+var cloudLedges = [];
+var cloudSprites = [];
+var cloudContact, prevCloudContact;
+
 var origTint = 0xFFFFFF;
+
 
 var flower;
 var player;
@@ -133,26 +139,35 @@ function create() {
 	//clouds.enableBody = true;
 
 
-	var ledge = platforms.create(274, 220, 'platform');
+	ledge = platforms.create(274, 220, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.44, .5);
 	var cloud = game.add.sprite(270, 200, 'cloud');
+	cloudLedges.push(ledge);
+	cloudSprites.push(cloud);
 
-	var ledge = platforms.create(1200, 180, 'platform');
+	ledge = platforms.create(1200, 180, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.44, .5);
-	var leaf = game.add.sprite(1196, 160, 'cloud');
+	cloud = game.add.sprite(1196, 160, 'cloud');
+	cloudLedges.push(ledge);
+	cloudSprites.push(cloud);
 
-	var ledge = platforms.create(804, 240, 'platform');
+
+	ledge = platforms.create(804, 240, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.44, .5);
-	var cloud = game.add.sprite(800, 220, 'cloud');
+	cloud = game.add.sprite(800, 220, 'cloud');
+	cloudLedges.push(ledge);
+	cloudSprites.push(cloud);
 
-	var ledge = platforms.create(946, 410, 'platform');
+
+	ledge = platforms.create(946, 410, 'platform');
 	ledge.body.immovable = true;
 	ledge.scale.setTo(.44, .5);
-	var cloud = game.add.sprite(940, 390, 'cloud');
-
+	cloud = game.add.sprite(940, 390, 'cloud');
+	cloudLedges.push(ledge);
+	cloudSprites.push(cloud);
 
 
 	// var ledge = platforms.create(1100, game.world.height - 400, 'platform');
@@ -268,12 +283,14 @@ function create() {
 function update() {
 
 	leafContact = -1;
+	cloudContact = -1;
 
 	game.physics.arcade.collide(player, eyes);
 
 	game.physics.arcade.collide(player, creature);
 	//game.physics.arcade.collide(player, bouncy);
 	game.physics.arcade.collide(creature, platforms);
+
 	game.physics.arcade.collide(stars, platforms, function(star) {
 		star.kill();
 		makeStar()
@@ -337,16 +354,27 @@ function update() {
 		index: myIndex
 	});
 
+	// leaves
 	if (prevLeafContact >= 0 && leafContact === -1) {
 		leafOff(prevLeafContact);
 	} else {
 		leafOn(leafContact);
 	}
-
 	prevLeafContact = leafContact;
 
-	playerDistanceFromEyes();
+	// clouds
+	if (prevCloudContact >= 0 && cloudContact === -1) {
+		cloudOff(prevCloudContact);
+	} else {
+		cloudOn(cloudContact);
+	}
+	prevCloudContact = cloudContact;
+
 	tintLeaves();
+
+	playerDistanceFromEyes();
+	playerDistanceFromCave();
+
 	if (appleOn) {
 		apple.position.x = player.position.x;
 		apple.position.y = player.position.y;
@@ -505,8 +533,13 @@ function playerOnPlatform(player, platform) {
 			leafContact = i;
 		}
 	}
-	// console.log('playerOnPlatform');
-	// console.log(player);
+
+	for (var i = 0; i < cloudLedges.length; i++) {
+		if (platform === cloudLedges[i]) {
+			cloudContact = i;
+		}
+	}
+
 }
 
 function leafOn(index) {
@@ -521,20 +554,34 @@ function leafOn(index) {
 
 function leafOff(index) {
 	stopLooping(leafPlayers[index]);
-
-	// stop metering the leaf level
-	leafPlayers[index].disconnect();
-
-	// reset the tint (just in case)
-	leafSprites[index].tint = parseInt(rgb2hex(255, 255, 255));
-
 }
+
+function cloudOn(index) {
+	if (cloudContact >= 0 && prevCloudContact < 0) {
+		toggleLoopPoint(Math.floor(Math.random() * 100), cloudPlayers[index]);
+
+		// start metering the leaf level
+		cloudPlayers[index].connect(cloudMeters[index]);
+	}
+}
+
+function cloudOff(index) {
+	stopLooping(cloudPlayers[index]);
+}
+
+
 
 function tintLeaves() {
 	for (var i = 0; i < leafMeters.length; i++) {
 		var level = leafMeters[i].getLevel();
-		level = level * 1000;
+		level = level * 2000;
 		leafSprites[i].tint = parseInt(rgb2hex(255, 255 - level, 255));
+	}
+
+	for (var i = 0; i < cloudMeters.length; i++) {
+		var level = cloudMeters[i].getLevel();
+		level = level * 2000;
+		cloudSprites[i].tint = parseInt(rgb2hex(255, 255 - level, 255));
 	}
 }
 
@@ -546,14 +593,31 @@ function playerDistanceFromEyes() {
 	eyeSynth.setVolume(1 - normDistance);
 }
 
-function getDistance(x1, y1, x2, y2) {
-	return Math.sqrt(Math.pow((x1 - x2), 2), Math.pow((y1 - y2), 2));
+// tweak the masterFilter frequency
+function playerDistanceFromCave() {
+
+	// default freq
+	var filterFreq = 22050;
+
+	if (player.x > 1200 && player.y > 490) {
+		var distance = getDistance(player.x, player.y, 1365, 708);
+		filterFreq = p5Map(distance, 2, 162, 50, 2200);
+	}
+	masterFilter.frequency.exponentialRampToValueAtTime(filterFreq, masterFilter.now() + 0.5);
 }
 
 
-////////////////// COLOR HELPER FUNCTION
+////////////////// HELPER FUNCTIONS ////////////
 function rgb2hex(red, green, blue) {
 	var rgb = blue | (green << 8) | (red << 16);
 	var hexString = '#' + (0x1000000 + rgb).toString(16).slice(1)
 	return parseInt(hexString.replace(/^#/, ''), 16);
+}
+
+function p5Map(n, start1, stop1, start2, stop2) {
+  return ((n-start1)/(stop1-start1))*(stop2-start2)+start2;
+}
+
+function getDistance(x1, y1, x2, y2) {
+	return Math.sqrt(Math.pow((x1 - x2), 2), Math.pow((y1 - y2), 0.2));
 }
