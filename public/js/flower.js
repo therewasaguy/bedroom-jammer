@@ -3,21 +3,28 @@
  *  
  */
 
-// everything connects to the convolver
-
-// Master stuff! 0 is dry, 1 is wet
-var masterWetDry = new Tone.CrossFade(0);
-var masterFilter = new Tone.Filter();
-var masterConvolver = Tone.context.createConvolver();
+// everything connects to the MasterMix, then to WetDry to control convolution and filter
 var masterMix = Tone.context.createGain();
+
+// MasterMix connects to MasterWetDry. 0 is dry, 1 is wet (convolver)
+var masterWetDry = new Tone.CrossFade(0);
+
+// convolver goes to 1 (wet)
+var masterConvolver = Tone.context.createConvolver();
 masterMix.connect(masterConvolver);
-masterMix.connect(masterFilter);
 masterConvolver.connect(masterWetDry, 0, 1);
+
+// filter goes to both 0 (dry) and 1 (wet)
+var masterFilter = new Tone.Filter();
+masterMix.connect(masterFilter);
 masterFilter.connect(masterWetDry, 0, 0);
 masterFilter.connect(masterWetDry, 0, 1);
+
+// wetDry goes to master
 masterWetDry.toMaster();
 
 Tone.Transport.bpm.value = 80;
+
 
 //////// LEAVES
 var leafPlayers = [];
@@ -27,6 +34,7 @@ leafPlayers.push( new Tone.Player("./audio/stems/leafs/Chat_App_Bedroom_Jammer_d
 
 var convolverBuffer = new Tone.Buffer('./audio/concrete-tunnel-IR.mp3');
 
+// meters to measure amplitude of each leaf
 var leafMeters = [];
 for (var i in leafPlayers) {
   leafMeters.push( new Tone.Meter(1, 0.2, 0) );
@@ -40,6 +48,7 @@ cloudPlayers.push( new Tone.Player("./audio/stems/clouds/bass.mp3") );
 cloudPlayers.push( new Tone.Player("./audio/stems/clouds/drums.mp3") );
 cloudPlayers.push( new Tone.Player("./audio/stems/clouds/hmmOnly.mp3") );
 
+// meters to measure amplitude of each clouds
 var cloudMeters = [];
 for (var i in cloudPlayers) {
   cloudMeters.push( new Tone.Meter(1, 0.2, 0) );
@@ -52,6 +61,7 @@ Tone.Buffer.onload = function(){
   startPlayerAndTransport();
 };
 
+// start playing all tracks and start the transport, but every track volume will be -64 (inaudible)
 function startPlayerAndTransport() {
   masterConvolver.buffer = convolverBuffer._buffer;
 
@@ -81,6 +91,7 @@ function startPlayerAndTransport() {
   eyeSynth.start(0);
 }
 
+// change the measure that is looping
 var toggleLoopPoint = function(measure, aPlayer) {
   var player = aPlayer;
   var currentMeasure = Tone.Transport.position.split(":")[0];
@@ -110,6 +121,7 @@ var toggleLoopPoint = function(measure, aPlayer) {
   }, nextMeasure);
 }
 
+// stop and fade out after oneMeasure
 var stopLooping = function(aPlayer) {
   console.log('remove loop point');
 
